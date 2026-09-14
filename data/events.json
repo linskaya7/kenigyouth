@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-09-14T16:30:29.347415",
+    "generated_at": "2026-09-14T16:38:22.492141",
     "total_events": 8,
     "categories": {
       "sport": {
@@ -58,14 +58,14 @@
   "events": [
     {
       "id": "c6e784d92c24",
-      "title": "Балет «Щелкунчик» в сопровождении оркестра",
+      "title": "Музыка южных ночей",
       "description": "",
       "url": "https://klops.ru/afisha",
       "date": "",
       "image": "",
       "source": "Клопс Афиша",
       "tags": "",
-      "category": "sport"
+      "category": "music"
     },
     {
       "id": "928fd906d164",
