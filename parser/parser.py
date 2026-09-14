@@ -68,20 +68,6 @@ class EventParser:
         text_lower = text.lower()
         return any(excl.lower() in text_lower for excl in EXCLUDE_KEYWORDS)
 
-    def is_youth_relevant(self, text: str) -> bool:
-        """Проверка молодёжной направленности"""
-        if not text:
-            return False
-        text_lower = text.lower()
-        youth_markers = [
-            "молодёж", "молодеж", "молодые", "зумер", "подростк",
-            "teenager", "юность", "студент", "школьник", "школьниц",
-            "14", "15", "16", "17", "18", "19", "20", "21", "22", "23",
-            "24", "25", "26", "27", "28", "29", "30", "31", "32", "33",
-            "34", "35", "лет", "возраст",
-        ]
-        return any(marker in text_lower for marker in youth_markers)
-
     def categorize_event(self, text: str) -> str:
         """Определение категории по тексту"""
         if not text:
@@ -100,15 +86,129 @@ class EventParser:
             return max(scores, key=scores.get)
         return "other"
 
-    def parse_source(self, source: dict) -> list[dict]:
-        """Парсинг одного источника"""
+    def parse_klops(self, source: dict) -> list[dict]:
+        """Парсинг афиши Клопс"""
         events = []
         print(f"\n[*] Парсинг: {source['name']}")
         print(f"    URL: {source['url']}")
 
-        if not source.get("enabled", True):
-            print("    [~] Источник отключён, пропуск")
+        html = self.fetch_page(source["url"])
+        if not html:
             return events
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Ищем карточки событий
+        # Клопс использует div с классами для карточек
+        cards = soup.find_all(['div', 'article'], class_=lambda x: x and (
+            'card' in str(x).lower() or 
+            'event' in str(x).lower() or 
+            'afisha' in str(x).lower() or
+            'item' in str(x).lower()
+        ))
+
+        print(f"    [+] Найдено {len(cards)} карточек")
+
+        for card in cards[:PARSER_CONFIG["max_events_per_source"]]:
+            self.stats["total_parsed"] += 1
+            try:
+                event = self._extract_klops_event(card, source["url"])
+                if not event:
+                    self.stats["filtered_out"] += 1
+                    continue
+
+                full_text = f"{event['title']} {event.get('description', '')} {event.get('tags', '')}"
+
+                # Проверка исключений
+                if self.contains_excluded(full_text):
+                    self.stats["excluded"] += 1
+                    print(f"    [-] ИСКЛЮЧЕНО: {event['title'][:50]}...")
+                    continue
+
+                # Проверка ключевых слов
+                matches, category = self.matches_keywords(full_text)
+                if not matches:
+                    self.stats["filtered_out"] += 1
+                    continue
+
+                event["category"] = category
+                event["source"] = source["name"]
+
+                if event["url"] not in self.seen_urls:
+                    self.seen_urls.add(event["url"])
+                    events.append(event)
+                    self.stats["accepted"] += 1
+                    print(f"    [+] ПРИНЯТО [{category}]: {event['title'][:50]}...")
+
+            except Exception as e:
+                continue
+
+        print(f"    [+] Собрано {len(events)} событий после фильтрации")
+        return events
+
+    def _extract_klops_event(self, card, base_url: str) -> dict | None:
+        """Извлечение события из карточки Клопс"""
+        # Заголовок
+        title_el = card.find(['h2', 'h3', 'h4', 'a'])
+        if not title_el:
+            return None
+        title = title_el.get_text(strip=True)
+        if len(title) < 5 or len(title) > 200:
+            return None
+
+        # Ссылка
+        link = None
+        if title_el.name == "a":
+            link = title_el.get("href")
+        else:
+            a_tag = card.find("a")
+            if a_tag:
+                link = a_tag.get("href")
+
+        if link:
+            link = urljoin(base_url, link)
+        else:
+            link = base_url
+
+        # Дата
+        date_text = ""
+        date_el = card.find(['span', 'div', 'time'], class_=lambda x: x and 'date' in str(x).lower())
+        if date_el:
+            date_text = date_el.get_text(strip=True)
+            # Очищаем дату от лишних символов
+            date_text = re.sub(r'\s+', ' ', date_text)
+
+        # Описание
+        desc = ""
+        desc_el = card.find(['p', 'div'], class_=lambda x: x and 'desc' in str(x).lower())
+        if desc_el:
+            desc = desc_el.get_text(strip=True)[:500]
+
+        # Изображение
+        img_url = ""
+        img_el = card.find("img")
+        if img_el:
+            img_url = img_el.get("src") or img_el.get("data-src", "")
+            if img_url:
+                img_url = urljoin(base_url, img_url)
+
+        return {
+            "id": hashlib.md5(link.encode()).hexdigest()[:12],
+            "title": title,
+            "description": desc,
+            "url": link,
+            "date": date_text,
+            "image": img_url,
+            "source": "",
+            "tags": "",
+            "category": "other",
+        }
+
+    def parse_generic(self, source: dict) -> list[dict]:
+        """Универсальный парсинг для других источников"""
+        events = []
+        print(f"\n[*] Парсинг: {source['name']}")
+        print(f"    URL: {source['url']}")
 
         html = self.fetch_page(source["url"])
         if not html:
@@ -200,15 +300,6 @@ class EventParser:
         else:
             link = base_url
 
-        # Проверка, что ссылка ведёт на домен источника
-        try:
-            parsed_base = urlparse(base_url)
-            parsed_link = urlparse(link)
-            if parsed_link.netloc and parsed_link.netloc != parsed_base.netloc:
-                link = urljoin(base_url, parsed_link.path)
-        except:
-            pass
-
         # Дата
         date_text = ""
         date_el = item.find(["time", "span", "div", "p"], 
@@ -224,11 +315,6 @@ class EventParser:
                            class_=re.compile(r"desc|text|anons|описан|summary", re.I))
         if desc_el:
             desc = desc_el.get_text(strip=True)[:500]
-        else:
-            # Берём весь текст элемента как описание
-            all_text = item.get_text(strip=True)
-            if len(all_text) > len(title) + 10:
-                desc = all_text[:500]
 
         # Изображение
         img_url = ""
@@ -250,12 +336,12 @@ class EventParser:
             "category": "other",
         }
 
-    def run(self, use_demo: bool = True):
+    def run(self, use_demo: bool = False):
         """Запуск парсера"""
         print("=" * 60)
-        print("🗓️  Молодёжный дайджест Калининграда — Парсер")
+        print("Калужский молодёжный дайджест — Парсер")
         print("=" * 60)
-        print(f"📅 Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+        print(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
         print()
 
         if use_demo:
@@ -266,7 +352,10 @@ class EventParser:
             print("[*] Запуск реального парсинга источников")
             for source in SOURCES:
                 try:
-                    source_events = self.parse_source(source)
+                    if source.get("parser") == "klops":
+                        source_events = self.parse_klops(source)
+                    else:
+                        source_events = self.parse_generic(source)
                     self.events.extend(source_events)
                 except Exception as e:
                     print(f"  [!] Ошибка парсинга {source['name']}: {e}")
@@ -280,14 +369,14 @@ class EventParser:
 
         # Статистика
         print("\n" + "=" * 60)
-        print("📊 СТАТИСТИКА:")
+        print("СТАТИСТИКА:")
         print(f"  Всего обработано: {self.stats['total_parsed']}")
         print(f"  Отфильтровано:   {self.stats['filtered_out']}")
         print(f"  Исключено:       {self.stats['excluded']}")
         print(f"  Принято:         {self.stats['accepted']}")
         print("=" * 60)
-        print(f"✅ Готово! Событий в дайджесте: {len(self.events)}")
-        print(f"📁 Файл: {PARSER_CONFIG['output_dir']}/{PARSER_CONFIG['output_file']}")
+        print(f"Готово! Событий в дайджесте: {len(self.events)}")
+        print(f"Файл: {PARSER_CONFIG['output_dir']}/{PARSER_CONFIG['output_file']}")
         print("=" * 60)
 
         return self.events
@@ -301,7 +390,7 @@ class EventParser:
             {
                 "id": "demo001",
                 "title": "Субботник на берегу Янтарного",
-                "description": "Экологический субботник для молодёжи. Собираем мусор, высаживаем деревья. Все материалы предоставляем. Берём перчатки и хорошее настроение!",
+                "description": "Экологический субботник для молодёжи. Собираем мусор, высаживаем деревья. Все материалы предоставляем.",
                 "url": "https://example.com/event1",
                 "date": (week_start + timedelta(days=5)).strftime("%d.%m.%Y"),
                 "image": "",
@@ -312,7 +401,7 @@ class EventParser:
             {
                 "id": "demo002",
                 "title": "Бесплатная тренировка по брейк-дансу",
-                "description": "Открытая тренировка для молодёжи от 14 лет. Все уровни подготовки. Приходи танцевать и знакомиться!",
+                "description": "Открытая тренировка для молодёжи от 14 лет. Все уровни подготовки.",
                 "url": "https://example.com/event2",
                 "date": (week_start + timedelta(days=6)).strftime("%d.%m.%Y"),
                 "image": "",
@@ -323,7 +412,7 @@ class EventParser:
             {
                 "id": "demo003",
                 "title": "Мастер-класс по летней акварели",
-                "description": "Научим рисовать акварелью на свежем воздухе. Все материалы предоставляем. Красивый вид на Преголю в подарок!",
+                "description": "Научим рисовать акварелью на свежем воздухе. Все материалы предоставляем.",
                 "url": "https://example.com/event3",
                 "date": (week_start + timedelta(days=3)).strftime("%d.%m.%Y"),
                 "image": "",
@@ -334,40 +423,40 @@ class EventParser:
             {
                 "id": "demo004",
                 "title": "Встреча клуба настольных игр",
-                "description": "Играем в Мафию, Alias, Монополию и другие игры. Новичкам объясним правила. Знакомства и хорошее настроение!",
+                "description": "Играем в Мафию, Alias, Монополию. Новичкам объясним правила.",
                 "url": "https://example.com/event4",
                 "date": (week_start + timedelta(days=4)).strftime("%d.%m.%Y"),
                 "image": "",
                 "source": "Клуб «ИгроМания»",
                 "category": "community",
-                "tags": "комьюнити встречи молодёжь творчество",
+                "tags": "комьюнити встречи молодёжь",
             },
             {
                 "id": "demo005",
-                "title": "Добрые дела: помощь приюту для животных",
-                "description": "Едем в приют помогать — гуляем с собаками, убираем территорию. Спарайтись и авось увезёте нового друга домой!",
+                "title": "Добрые дела: помощь приюту",
+                "description": "Едем в приют помогать — гуляем с собаками, убираем территорию.",
                 "url": "https://example.com/event5",
                 "date": (week_start + timedelta(days=0)).strftime("%d.%m.%Y"),
                 "image": "",
-                "source": "Волонтёрский центр «Доброта»",
+                "source": "Волонтёрский центр",
                 "category": "animals",
                 "tags": "животные волонтёрство добро приют",
             },
             {
                 "id": "demo006",
                 "title": "Лекторий «Город и экология»",
-                "description": "Разговор о том, как сделать наш город зеленее. Экологи расскажут о переработке, компостировании и вертикальных садах.",
+                "description": "Разговор о том, как сделать наш город зеленее.",
                 "url": "https://example.com/event6",
                 "date": (week_start + timedelta(days=2)).strftime("%d.%m.%Y"),
                 "image": "",
-                "source": "Библиотека им. Бородина",
+                "source": "Библиотека",
                 "category": "education",
                 "tags": "образование экология развитие",
             },
             {
                 "id": "demo007",
                 "title": "Акустический вечер на Ярмарке",
-                "description": "Живая музыка, акустические гитары и уютная атмосфера. Свои песни могут исполнить все желающие!",
+                "description": "Живая музыка, акустические гитары и уютная атмосфера.",
                 "url": "https://example.com/event7",
                 "date": (week_start + timedelta(days=1)).strftime("%d.%m.%Y"),
                 "image": "",
@@ -378,35 +467,13 @@ class EventParser:
             {
                 "id": "demo008",
                 "title": "Йога в парке Нижнее озеро",
-                "description": "Бесплатная утренняя йога для всех уровней. Маты и коврики по желанию. Природа, свежий воздух и гармония!",
+                "description": "Бесплатная утренняя йога для всех уровней.",
                 "url": "https://example.com/event8",
                 "date": (week_start + timedelta(days=6)).strftime("%d.%m.%Y"),
                 "image": "",
-                "source": "Йога-студия «Баланс»",
+                "source": "Йога-студия",
                 "category": "sport",
-                "tags": "спорт активный отдых здоровье молодёжь",
-            },
-            {
-                "id": "demo009",
-                "title": "Курс «Основы программирования»",
-                "description": "Бесплатный курс для молодёжи 14-30 лет. Научим создавать сайты и приложения. Все материалы включены.",
-                "url": "https://example.com/event9",
-                "date": (week_start + timedelta(days=3)).strftime("%d.%m.%Y"),
-                "image": "",
-                "source": "IT-клуб «Кодер»",
-                "category": "education",
-                "tags": "образование развитие технологии молодёжь",
-            },
-            {
-                "id": "demo010",
-                "title": "Фестиваль уличного искусства",
-                "description": "Граффити, стрит-арт, живая музыка и мастер-классы. Творчество для молодёжи!",
-                "url": "https://example.com/event10",
-                "date": (week_start + timedelta(days=5)).strftime("%d.%m.%Y"),
-                "image": "",
-                "source": "Культурный центр «Арт-остров»",
-                "category": "creative",
-                "tags": "творчество музыка молодёжь фестиваль",
+                "tags": "спорт активный отдых здоровье",
             },
         ]
 
@@ -451,4 +518,4 @@ class EventParser:
 if __name__ == "__main__":
     parser = EventParser()
     # use_demo=True для демо, use_demo=False для реального парсинга
-    parser.run(use_demo=True)
+    parser.run(use_demo=False)

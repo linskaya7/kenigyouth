@@ -10,7 +10,8 @@ KEYWORDS_SPORT = [
     "активн", "подвижн", "игр", "турнир", "соревнован", "квест",
     "велосипед", "лыж", "плаван", "балет", "танц", "брейк", "фристайл",
     "скалодром", "альпинизм", "кайт", "сёрф", "йога", "пилатес",
-    "омолод", "бодибилдинг", "каросс", "гимнастик", " единоборств", "бокс",
+    "омолод", "бодибилдинг", "каросс", "гимнастик", "единоборств", "бокс",
+    "волейбол", "футбол", "хоккей", "баскетбол", "теннис", "настольн",
 ]
 
 # Категория: экология
@@ -41,7 +42,7 @@ KEYWORDS_CREATIVE = [
 KEYWORDS_MUSIC = [
     "музык", "концерт", "фестивал", "выступлен", "групп", "исполнител",
     "вокал", "хор", "оркестр", "симфони", "джаз", "рок", "поп",
-    "акустик", "բիթ", "рэп", "хип-хоп", "танцевальн",
+    "акустик", "бит", "рэп", "хип-хоп", "танцевальн",
     "disk", "dj", "диджей", "клубн",
 ]
 
@@ -58,7 +59,7 @@ KEYWORDS_EDUCATION = [
 KEYWORDS_COMMUNITY = [
     "комьюнити", "встреч", "клуб", "сообществ", "знакомств", "общени",
     "дискусси", "дебат", "кругл", "стол", "форум", "конференц",
-    "нетворкинг", "փորձ", "обмен", "опыт", "наставничеств",
+    "нетворкинг", "обмен", "опыт", "наставничеств",
 ]
 
 # Категория: животные
@@ -107,83 +108,22 @@ EXCLUDE_KEYWORDS = [
     "дискриминац", "угнетен", "унижен", "оскорблен",
     # Спам и коммерция
     "скидк", "купон", "промокод", "акци", "распродаж",
-    "крейз", "купон", "скидк",
 ]
 
 # Источники данных (открытые площадки Калининграда)
 SOURCES = [
-    # Государственные порталы
+    # Основной источник - Афиша Клопс
     {
-        "name": "Администрация Калининграда",
-        "url": "https://калининград.рф/events",
+        "name": "Клопс Афиша",
+        "url": "https://klops.ru/afisha",
         "type": "events",
         "enabled": True,
-        "parser": "generic",
-    },
-    {
-        "name": "Калининградская область",
-        "url": "https://калининград.рф/region/events",
-        "type": "events",
-        "enabled": True,
-        "parser": "generic",
+        "parser": "klops",
     },
     # Городские порталы
     {
-        "name": "Kaliningrad.guru",
-        "url": "https://kaliningrad.guru/events",
-        "type": "events",
-        "enabled": True,
-        "parser": "generic",
-    },
-    {
-        "name": "Tripster Калининград",
-        "url": "https://tripster.ru/kaliningrad/articles",
-        "type": "articles",
-        "enabled": True,
-        "parser": "generic",
-    },
-    # Молодёжные площадки
-    {
-        "name": "ФРКМ (Форум молодёжи)",
-        "url": "https://frkm47.ru/events",
-        "type": "events",
-        "enabled": True,
-        "parser": "generic",
-    },
-    {
-        "name": "Молодёжь Калининграда",
-        "url": "https://vk.com/youthkaliningrad",
-        "type": "social",
-        "enabled": False,  # Требует API
-        "parser": "vk",
-    },
-    # Культурные площадки
-    {
-        "name": "Калининградская Ярмарка",
-        "url": "https://yarmarka39.ru/events",
-        "type": "events",
-        "enabled": True,
-        "parser": "generic",
-    },
-    {
-        "name": "Балтийскаяفيلармония",
-        "url": "https://philharmonia.ru/kaliningrad",
-        "type": "events",
-        "enabled": True,
-        "parser": "generic",
-    },
-    # Спортивные площадки
-    {
-        "name": "Спорт в Калининграде",
-        "url": "https://sport-pobeda.ru/kaliningrad",
-        "type": "events",
-        "enabled": True,
-        "parser": "generic",
-    },
-    # Эко-площадки
-    {
-        "name": "Эко-Калининград",
-        "url": "https://ecokaliningrad.ru/events",
+        "name": "Калининград.рф",
+        "url": "https://калининград.рф",
         "type": "events",
         "enabled": True,
         "parser": "generic",
@@ -262,7 +202,6 @@ PARSER_CONFIG = {
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "output_dir": "../data",
     "output_file": "events.json",
-    # Фильтрация по возрасту (в keywords неявно)
     "min_age": 14,
     "max_age": 35,
 }
