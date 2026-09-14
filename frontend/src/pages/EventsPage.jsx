@@ -1,122 +1,35 @@
 import { useState } from 'react'
+import useEvents from '../hooks/useEvents'
 import EventCard from '../components/EventCard'
 import CategoryFilter from '../components/CategoryFilter'
 
-const DEMO_EVENTS = [
-  {
-    id: "demo001",
-    title: "Субботник на берегу Янтарного",
-    description: "Приглашаем всех на экологический субботник! Собираем мусор, высаживаем деревья.",
-    url: "https://example.com/event1",
-    date: new Date().toLocaleDateString('ru-RU'),
-    image: "",
-    source: "Эко-движение Калининграда",
-    category: "ecology",
-    tags: "экология субботник",
-  },
-  {
-    id: "demo002",
-    title: "Бесплатная тренировка по брейк-дансу",
-    description: "Открытая тренировка для всех возрастов.",
-    url: "https://example.com/event2",
-    date: new Date(Date.now() + 86400000).toLocaleDateString('ru-RU'),
-    image: "",
-    source: "Студия «Движение»",
-    category: "sport",
-    tags: "спорт танцы",
-  },
-  {
-    id: "demo003",
-    title: "Мастер-класс по летней акварели",
-    description: "Научим рисовать акварелью на свежем воздухе.",
-    url: "https://example.com/event3",
-    date: new Date(Date.now() + 172800000).toLocaleDateString('ru-RU'),
-    image: "",
-    source: "Арт-пространство «Маяк»",
-    category: "creative",
-    tags: "творчество мастер-класс",
-  },
-  {
-    id: "demo004",
-    title: "Встреча клуба настольных игр",
-    description: "Играем в Мафию, Alias, Монополию.",
-    url: "https://example.com/event4",
-    date: new Date(Date.now() + 259200000).toLocaleDateString('ru-RU'),
-    image: "",
-    source: "Клуб «ИгроМания»",
-    category: "community",
-    tags: "комьюнити встречи",
-  },
-  {
-    id: "demo005",
-    title: "Добрые дела: помощь приюту",
-    description: "Едем в приют помогать.",
-    url: "https://example.com/event5",
-    date: new Date(Date.now() + 345600000).toLocaleDateString('ru-RU'),
-    image: "",
-    source: "Волонтёрский центр",
-    category: "animals",
-    tags: "животные волонтёрство",
-  },
-  {
-    id: "demo006",
-    title: "Лекторий «Город и экология»",
-    description: "Как сделать наш город зеленее.",
-    url: "https://example.com/event6",
-    date: new Date(Date.now() + 432000000).toLocaleDateString('ru-RU'),
-    image: "",
-    source: "Библиотека",
-    category: "education",
-    tags: "образование экология",
-  },
-  {
-    id: "demo007",
-    title: "Акустический вечер на Ярмарке",
-    description: "Живая музыка и уютная атмосфера.",
-    url: "https://example.com/event7",
-    date: new Date(Date.now() + 518400000).toLocaleDateString('ru-RU'),
-    image: "",
-    source: "Калининградская Ярмарка",
-    category: "music",
-    tags: "музыка творчество",
-  },
-  {
-    id: "demo008",
-    title: "Йога в парке",
-    description: "Бесплатная утренняя йога для всех.",
-    url: "https://example.com/event8",
-    date: new Date(Date.now() + 604800000).toLocaleDateString('ru-RU'),
-    image: "",
-    source: "Йога-студия",
-    category: "sport",
-    tags: "спорт здоровье",
-  },
-]
-
-const CATEGORIES = {
-  sport: { label: "Спорт", icon: "🏃" },
-  ecology: { label: "Экология", icon: "🌿" },
-  volunteer: { label: "Волонтёрство", icon: "🤝" },
-  creative: { label: "Творчество", icon: "🎨" },
-  music: { label: "Музыка", icon: "🎵" },
-  education: { label: "Образование", icon: "📚" },
-  community: { label: "Комьюнити", icon: "👥" },
-  animals: { label: "Животные", icon: "🐾" },
-  kindness: { label: "Добро", icon: "💝" },
-  other: { label: "Другое", icon: "✨" },
-}
-
 function EventsPage() {
+  const { events, categories, loading, error } = useEvents()
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const filteredEvents = DEMO_EVENTS.filter(event => {
+  const filteredEvents = events.filter(event => {
     const matchesCategory = !selectedCategory || event.category === selectedCategory
     const matchesSearch = !searchQuery || 
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchQuery.toLowerCase())
+      event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (event.source && event.source.toLowerCase().includes(searchQuery.toLowerCase()))
     return matchesCategory && matchesSearch
   })
+
+  if (loading) {
+    return (
+      <div className="px-4 pt-4">
+        <header className="mb-4 safe-area-top">
+          <h1 className="text-2xl font-bold text-gray-800">События</h1>
+        </header>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+          <span className="ml-3 text-gray-500">Загрузка...</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="px-4 pt-4">
@@ -149,7 +62,7 @@ function EventsPage() {
 
       {/* Фильтр категорий */}
       <CategoryFilter
-        categories={CATEGORIES}
+        categories={categories}
         selected={selectedCategory}
         onSelect={setSelectedCategory}
       />

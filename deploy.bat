@@ -5,7 +5,29 @@ echo   Kaliningrad Youth Digest - Deploy
 echo ========================================
 echo.
 
-echo [1/3] Installing frontend dependencies...
+echo [1/4] Running parser...
+cd parser
+set PYTHONIOENCODING=utf-8
+python parser.py
+if %errorlevel% neq 0 (
+    echo Error running parser!
+    pause
+    exit /b 1
+)
+cd ..
+
+echo.
+echo [2/4] Copying data to frontend...
+if not exist "frontend\public\data" mkdir "frontend\public\data"
+copy /Y data\events.json frontend\public\data\events.json
+if %errorlevel% neq 0 (
+    echo Error copying data!
+    pause
+    exit /b 1
+)
+
+echo.
+echo [3/4] Installing dependencies...
 cd frontend
 call npm install
 if %errorlevel% neq 0 (
@@ -15,21 +37,20 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [2/3] Building project...
+echo [4/4] Building project...
 call npm run build
 if %errorlevel% neq 0 (
-    echo Build error!
+    echo Error building!
     pause
     exit /b 1
 )
+cd ..
 
 echo.
-echo [3/3] Build complete!
-echo.
-if exist "dist" (
-    echo OK: dist folder created.
+if exist "frontend\dist" (
+    echo OK: Build successful!
 ) else (
-    echo ERROR: dist folder not found!
+    echo ERROR: Build failed!
     pause
     exit /b 1
 )
@@ -41,30 +62,18 @@ echo ========================================
 echo.
 echo   Option 1: GitHub Pages (recommended)
 echo   ------------------------------------
-echo   1. Create repo on GitHub
-echo   2. Upload project:
-echo      git init
-echo      git add .
-echo      git commit -m "Initial commit"
-echo      git remote add origin https://github.com/YOUR_USER/kaliningrad-youth-digest.git
-echo      git push -u origin main
-echo   3. Settings - Pages - GitHub Actions
-echo   4. URL: https://YOUR_USER.github.io/kaliningrad-youth-digest/
+echo   1. git add .
+echo   2. git commit -m "Update events"
+echo   3. git push
+echo   4. Wait for GitHub Actions
+echo   5. URL: https://linskaya7.github.io/kenigyouth/
 echo.
-echo   Option 2: Vercel (fast deploy)
+echo   Option 2: Local preview
 echo   ------------------------------------
-echo   1. npm install -g vercel
-echo   2. In frontend folder: vercel
-echo   3. URL: https://YOUR_PROJECT.vercel.app/
-echo.
-echo   Option 3: Netlify
-echo   ------------------------------------
-echo   1. Go to https://app.netlify.com/
-echo   2. Drag frontend/dist folder
-echo   3. URL: https://YOUR_SITE.netlify.app/
+echo   cd frontend
+echo   npm run preview
+echo   URL: http://localhost:4173
 echo.
 echo ========================================
-echo.
-echo DONE! Choose a deploy option above.
 echo.
 pause
